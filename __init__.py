@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
-from flask import Flask
-from flask import jsonify
+from flask import Flask, render_template, Response
 from bson.json_util import dumps
 from pymongo import MongoClient
-import RPi.GPIO as GPIO
+import json, urllib, urllib2
+import requests
 
 app = Flask(__name__)
                           
-# Set up GPIO with output to LED on pin 18
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(18, GPIO.OUT)
-
 # Set up database access (MongoDB)
 dbclient = MongoClient()
 db = dbclient.wot
@@ -20,28 +16,88 @@ thingscollection = db.thing.find()
 thingslist = list(thingscollection)
 things = dumps(thingslist)
 
+
 # Helper function to convert Mongo object(s) to JSON
 def toJson(data):
     return dumps(data)
 
-@app.route('/pingpong/api/v1.0/things', methods=['GET'])
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# GET list of thing descriptions
+@app.route('/things', methods=['GET'])
 def get_things():
     return things
 
-@app.route('/pingpong/api/v1.0/things/<name>', methods=['GET'])
-def get_thingstatus(name):
-    thing = db.thing.find({"name": name })
+
+# GET thing description
+@app.route('/things/<name>', methods=['GET'])
+def get_thing(name):
+    thing = db.thing.find({"name": name})
     if thing.count() <= 0:
         return '{"Error:": "No such name"}'
     return toJson(thing)
 
-@app.route('/pingpong/api/v1.0/things/<name>/<actor>/<value>', methods=['POST'])
-def set_thingactor(name, actor, value):
-    thing = db.thing.find({"$and": [{"name": name }, {"actors.name": actor}]})
+
+# GET list of actors for named thing
+@app.route('/things/<name>/actors', methods=['GET'])
+def get_thingactors(name):
+    thing = db.thing.find({"name": name})
     if thing.count() <= 0:
         return '{"Error:": "No such name"}'
-    GPIO.output(18, int(value))
-    return '{"Light": ' + value + '}'
+    for data in thing:
+        thing_dict = json.loads(toJson(data))
+    return toJson(thing_dict['actors'])
+
+
+# GET list of sensors for named thing
+@app.route('/things/<name>/sensors', methods=['GET'])
+def get_thingsensors(name):
+    thing = db.thing.find({"name": name})
+    if thing.count() <= 0:
+        return '{"Error:": "No such name"}'
+    for data in thing:
+        thing_dict = json.loads(toJson(data))
+    return toJson(thing_dict['sensors'])
+
+# POST (set) value for thing actor
+@app.route('/things/<name>/<actor>/<value>', methods=['POST'])
+def set_thingactor(name, actor, value):
+    thing = db.thing.find({"$and": [{"name": name}, {"actors.name": actor}]})
+    if thing.count() <= 0:
+        return '{"Error:": "No such name"}'
+    for data in thing:
+        thing_dict = json.loads(toJson(data))
+        for item in thing_dict['actors']:
+            if item['name'] == actor:
+                post_url = item['uri']
+                if not post_url.endswith("/"):
+                    post_url += "/" + str(value)
+                else:
+                    post_url += str(value)
+        response = requests.post(post_url)
+    return response.text
+
+
+# GET value for thing sensor
+@app.route('/things/<name>/<sensor>', methods=['GET'])
+def get_thingsensor(name, sensor):
+    thing = db.thing.find({"$and": [{"name": name}, {"sensors.name": sensor}]})
+    if thing.count() <= 0:
+        return '{"Error:": "No such name"}'
+    for data in thing:
+        thing_dict = json.loads(toJson(data))
+        for item in thing_dict['sensors']:
+            if item['name'] == sensor:
+                get_url = item['uri']
+        response_in = requests.get(get_url)
+        response_out = Response(response_in.text)
+        response_out.headers['Content-Type'] = "application/json"
+    return response_out
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
