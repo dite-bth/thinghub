@@ -32,6 +32,16 @@ def index():
     return render_template("index.html")
 
 
+# Endpoint for registering devices
+@app.route("/register", methods=['POST'])
+def register():
+    thing_description = json.loads(request.get_data())
+    print thing_description
+    if all(k in thing_description for k in ('name', 'uri', 'description', 'api_doc')):
+        return Response('{"Success": "Registered"}', mimetype='application/json')
+    return Response('{"Failed": "Malformed Thing description"}', mimetype='application/json')
+
+
 # GET list of thing descriptions
 @app.route('/things', methods=['GET'])
 def get_things():
