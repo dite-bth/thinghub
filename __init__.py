@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, Response
+import json, urllib, urllib2, requests, gevent
+from flask import Flask, render_template, Response, request
 from bson.json_util import dumps
 from pymongo import MongoClient
-import json, urllib, urllib2
-import requests
+from gevent.wsgi import WSGIServer
+from gevent.queue import Queue
+from sse import ServerSentEvent
+from subscriptions import Subscriptions
 
 app = Flask(__name__)
-                          
+
 # Set up database access (MongoDB)
 dbclient = MongoClient()
 db = dbclient.wot
@@ -16,6 +19,8 @@ thingscollection = db.thing.find()
 thingslist = list(thingscollection)
 things = dumps(thingslist)
 
+# Set up subscription handler
+subscriptions = Subscriptions()
 
 # Helper function to convert Mongo object(s) to JSON
 def toJson(data):
@@ -99,5 +104,47 @@ def get_thingsensor(name, sensor):
     return response_out
 
 
+########################################
+# Routes to handle subscriptions
+# (as pubsub-model using HTML5 SSE)
+########################################
+@app.route("/things/<name>/subscriptions")
+def debug(name):
+    # TODO: implement subscriptions for specific things
+    return "Currently %d subscriptions" % subscriptions.num_subscriptions()
+
+
+@app.route("/things/publish", methods=['POST'])
+def publish():
+    # Send dummy data
+    msg = request.get_data()
+    print msg
+    # TODO: Implement publish for specific things
+    def notify():
+        for sub in subscriptions.get_subscriptions()[:]:
+            sub.put(msg)
+
+    gevent.spawn(notify)
+    return Response(msg, mimetype="application/json")
+
+
+@app.route("/things/<name>/subscribe")
+def subscribe(name):
+    def gen():
+        q = Queue()
+        subscriptions.add_subscription(q)
+        try:
+            while True:
+                result = q.get()
+                ev = ServerSentEvent(str(result))
+                yield ev.encode()
+        except GeneratorExit:  # Or maybe use flask signals
+            subscriptions.remove_subscription(q)
+
+    return Response(gen(), mimetype="text/event-stream")
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    app.debug = True
+    server = WSGIServer(("0.0.0.0", 5000), app)
+    server.serve_forever()

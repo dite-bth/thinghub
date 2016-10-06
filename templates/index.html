@@ -27,8 +27,18 @@
         </p>
       </div>
       <div class="container">
-      <h2>WoT-enheter online</h2>
+      <h2>Uppdateringar från Wot-enheter</h2>
       <p id="wotlist"></p>
+      <script type="text/javascript">
+        var source = new EventSource("/things/Light mamager/subscribe");
+        source.onmessage = function(e) {
+            $("#wotlist").append(e.data);
+        };
+        source.addEventListener('greeting', function(event) {
+            var data = JSON.parse(event.data);
+            $("#wotlist").append(data.message);
+        }, false);
+      </script>
     </div>
 
       <hr>
