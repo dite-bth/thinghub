@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json, urllib, urllib2, requests, gevent
+import json, requests, gevent
 from flask import Flask, render_template, Response, request
 from bson.json_util import dumps
 from pymongo import MongoClient
