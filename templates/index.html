@@ -32,12 +32,9 @@
       <script type="text/javascript">
         var source = new EventSource("/things/Light mamager/subscribe");
         source.onmessage = function(e) {
-            $("#wotlist").append(e.data);
+            var data = JSON.parse(e.data)
+            $("#wotlist").append(data.name + "<br>");
         };
-        source.addEventListener('greeting', function(event) {
-            var data = JSON.parse(event.data);
-            $("#wotlist").append(data.message);
-        }, false);
       </script>
     </div>
 
