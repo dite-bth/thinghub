@@ -15,7 +15,7 @@ initial_things = [
     'sensors':[{
         'id': 1,
         'uri': u'http://10.0.0.3:8080/lightmanager/luminosity1',
-        'methods': u'GET',
+        'method': u'GET',
         'name': u'Luminosity sensor1',
         'description': u'Current luminosity for sensor 1 (measured in 5 minute intervals)',
         'type': u'Float',
@@ -24,7 +24,7 @@ initial_things = [
     'actors':[{
         'id': 1,
         'uri': u'http://10.0.0.3:8080/lightmanager/light1',
-        'methods': u'POST',
+        'method': u'POST',
         'name': u'Light1',
         'description': u'Lightswitch to control light 1',
         'type': u'Boolean',

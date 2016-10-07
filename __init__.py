@@ -1,32 +1,69 @@
 # -*- coding: utf-8 -*-
 import json, requests, gevent
-from flask import Flask, render_template, Response, request
+from flask import Flask, render_template, Response, request, jsonify
 from bson.json_util import dumps
 from pymongo import MongoClient
 from gevent.wsgi import WSGIServer
 from gevent.queue import Queue
 from sse import ServerSentEvent
 from subscriptions import Subscriptions
+from httperrors import  BadRequest
 
 app = Flask(__name__)
 
 # Set up database access (MongoDB)
 dbclient = MongoClient()
 db = dbclient.wot
-# Get the thing collection
-thingscollection = db.thing.find()
-# Create JSON-data from collection via a Python list
-thingslist = list(thingscollection)
-things = dumps(thingslist)
 
 # Set up subscription handler
 subscriptions = Subscriptions()
 
-# Helper function to convert Mongo object(s) to JSON
+
+########################################################
+#  Helper functions
+########################################################
+# Convert MongoDB object to JSON
 def toJson(data):
     return dumps(data)
 
 
+# Validation function to ensure proper Thing description format
+def validate_thing_description(thing_description):
+    try:
+        mandatory_keys = ('name', 'uri', 'description', 'api_doc', 'actors', 'sensors')
+        mandatory_sub_keys = ('name', 'uri', 'description', 'type', 'value', 'method')
+        # Also need to check len() because all() returns True for empty iterable
+        print thing_description
+        print thing_description['actors']
+        if len(thing_description) > 0 and not all(k in thing_description for k in mandatory_keys):
+            print ("Main error")
+            return False
+        if len(thing_description['actors']) > 0:
+            for actor in thing_description['actors']:
+                if not all(k in actor for k in mandatory_sub_keys):
+                    return False
+        if len(thing_description['sensors']) > 0:
+            for sensor in thing_description['sensors']:
+                if not all(k in sensor for k in mandatory_sub_keys):
+                    return False
+        return True
+    except:
+        raise ValueError
+
+
+#######################################################
+# Set up routes for error handling
+#######################################################
+@app.errorhandler(BadRequest)
+def handle_invalid_usage(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
+
+
+#######################################################
+# Main routes for the service
+#######################################################
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -35,16 +72,26 @@ def index():
 # Endpoint for registering devices
 @app.route("/register", methods=['POST'])
 def register():
-    thing_description = json.loads(request.get_data())
-    print thing_description
-    if all(k in thing_description for k in ('name', 'uri', 'description', 'api_doc')):
-        return Response('{"Success": "Registered"}', mimetype='application/json')
-    return Response('{"Failed": "Malformed Thing description"}', mimetype='application/json')
+    try:
+        # Get Thing description POST data and convert to JSON
+        data = json.loads(request.get_data())
+
+        # Validate Thing description
+        if validate_thing_description(data):
+            return Response('{"Success": "Registered"}', mimetype='application/json')
+        raise BadRequest('Malformed Thing description', status_code=400)
+    except ValueError:
+        raise BadRequest('Malformed JSON', status_code=400)
 
 
 # GET list of thing descriptions
 @app.route('/things', methods=['GET'])
 def get_things():
+    # Get the thing collection
+    things_collection = db.thing.find()
+    # Create JSON-data from collection via a Python list
+    things_list = list(things_collection)
+    things = dumps(things_list)
     return things
 
 
@@ -78,6 +125,7 @@ def get_thingsensors(name):
         thing_dict = json.loads(toJson(data))
     return toJson(thing_dict['sensors'])
 
+
 # POST (set) value for thing actor
 @app.route('/things/<name>/<actor>/<value>', methods=['POST'])
 def set_thingactor(name, actor, value):
@@ -89,11 +137,17 @@ def set_thingactor(name, actor, value):
         for item in thing_dict['actors']:
             if item['name'] == actor:
                 post_url = item['uri']
-                if not post_url.endswith("/"):
-                    post_url += "/" + str(value)
-                else:
-                    post_url += str(value)
-        response = requests.post(post_url)
+                payload = '{"value": "%s"}' % value
+                print payload
+                try:
+                    response = requests.post(post_url, data=json.dumps(payload), timeout=5)
+                except requests.exceptions.Timeout:
+                    #Request timed out
+                    return Response("Request timed out for %s" % post_url, status=408)
+                except requests.exceptions.RequestException as e:
+                    # Something went really wrong...
+                    print e
+                    return Response(e.message, status=503)
     return response.text
 
 
