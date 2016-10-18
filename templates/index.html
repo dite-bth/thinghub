@@ -8,8 +8,16 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <link rel="stylesheet" href="{{ url_for('static',filename='css/bootstrap.min.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static',filename='css/vis.min.css') }}">
         <link rel="stylesheet" href="{{ url_for('static',filename='css/bootstrap-theme.min.css') }}">
         <link rel="stylesheet" href="{{ url_for('static',filename='css/main.css') }}">
+        <style type="text/css">
+            #network-overview {
+              width: 80%;
+              height: 400px;
+              border: 2px solid lightgray;
+            }
+        </style>
 
         <!--[if lt IE 9]>
             <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
@@ -17,15 +25,111 @@
         <![endif]-->
     </head>
     <body>
+    <script src="{{ url_for('static',filename='js/vendor/visjs/vis.js') }}"></script>
+
     <!-- Main jumbotron for a primary marketing message or call to action -->
     <div class="jumbotron">
       <div class="container">
         <h1>Välkommen till DITEs hub för Web of Things prylar och tjänster</h1>
         <p>
-            Via hubben kan du accessa alla registrerade enheter, antingen direkt
-            via deras egna api-endpoints eller via hubbens eget samlade api.
+            Via hubben får du en överblick på anslutna enheter och tjänster.
+            Du kan också använda hubben för att accessa alla WoTs, antingen direkt
+            via deras egna api-endpoints eller via hubbens eget samlande api.
         </p>
       </div>
+        <div class="container">
+            <h2>Översikt</h2>
+            <p>
+                Klicka på noderna i översikten för att få detaljerad information om varje "ting".
+                Rektanglarna representerar WoT-enheter, trianglarna aktuatorer och cirklarna sensorer.
+            </p>
+            <div class="center-block" id="network-overview"></div>
+                <script type="text/javascript">
+                  // create an array with nodes
+                  var nodes = new vis.DataSet();
+
+                  // create an array with edges
+                  var edges = new vis.DataSet();
+
+                  // create a dictionary to store data objects
+                  var nodes_data = {};
+
+                  {% for thing in things %}
+                      nodes.add({
+                          id: 'n{{ loop.index }}',
+                          label: '{{ thing['name'] }}',
+                          title: '{{ thing['description'] }}',
+                          shape: 'box',
+                          group: 'group{{ loop.index }}'}
+                      );
+                      nodes_data['n{{ loop.index }}'] = {
+                          value: 'N/A', uri: '{{ thing['uri'] }}',
+                          desc: '{{ thing['description'] }}',
+                          name: '{{ thing['name'] }}'
+                      };
+                      {% set node_loop = loop %}
+                      {% for sensor in thing['sensors'] %}
+                          nodes.add({
+                              id: 'n{{ node_loop.index }}s{{ loop.index }}',
+                              label: '{{ sensor['name'] }}',
+                              shape: 'dot',
+                              title: '{{ sensor['description'] }}',
+                              group: 'group{{ node_loop.index }}'
+                          });
+                          edges.add({
+                              from: 'n{{ node_loop.index }}s{{ loop.index }}',
+                              to: 'n{{ node_loop.index }}'}
+                          );
+                          nodes_data['n{{ node_loop.index }}s{{ loop.index }}'] = {
+                              value: '{{ sensor['value'] }}',
+                              uri: '{{ sensor['uri'] }}',
+                              desc: '{{ sensor['description'] }}', name: '{{ sensor['name'] }}'
+                          };
+                      {% endfor %}
+                      {% for actor in thing['actors'] %}
+                          nodes.add({
+                              id: 'n{{ node_loop.index }}a{{ loop.index }}',
+                              label: '{{ actor['name'] }}',
+                              shape: 'triangle',
+                              title: '{{ actor['description'] }}',
+                              group: 'group{{ node_loop.index }}'
+                          });
+                          edges.add({
+                              from: 'n{{ node_loop.index }}a{{ loop.index }}',
+                              to: 'n{{ node_loop.index }}'}
+                          );
+                          nodes_data['n{{ node_loop.index }}a{{ loop.index }}'] = {
+                              value: '{{ actor['value'] }}',
+                              uri: '{{ actor['uri'] }}',
+                              desc: '{{ actor['description'] }}',
+                              name: '{{ actor['name'] }}'
+                          };
+                      {% endfor %}
+                  {% endfor %}
+
+                  // create a network
+                  var container = document.getElementById('network-overview');
+                  var data = {
+                    nodes: nodes,
+                    edges: edges
+                  };
+                  var options = {interaction:{hover:true}};
+                  var network = new vis.Network(container, data, options);
+                  network.on("click", function (params) {
+                      params.event = "[original event]";
+                      // get data object from event
+                      var node = nodes_data[params['nodes']];
+                      // empty and print details to modal window
+                      $('#details_modal .modal-title').text("Details for " + node.name);
+                      $('#details_modal .modal-body').empty();
+                      $('#details_modal .modal-body').append("<p><strong>Description:</strong> " + node.desc + "</p>");
+                      $('#details_modal .modal-body').append("<p><strong>URI:</strong> <a href='" + node.uri + "'>" + node.uri + "</a></p>");
+                      $('#details_modal .modal-body').append("<p><strong>Value:</strong> " + node.value + "</p>");
+                      $('#details_modal').modal();
+                  });
+                </script>
+            </div>
+        </div>
       <div class="container">
       <h2>Uppdateringar från Wot-enheter</h2>
       <p id="wotlist"></p>
@@ -43,11 +147,27 @@
       <footer>
         <p>WoTHub @ DITE-BTH</p>
       </footer>
-    </div> <!-- /container -->        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-        <script>window.jQuery || document.write('<script src="{{ url_for('static',filename='js/vendor/jquery-1.11.2.min.js') }}"><\/script>')</script>
+    </div>
 
-        <script src="{{ url_for('static',filename='js/vendor/bootstrap.min.js') }}"></script>
+    <div id="details_modal" class="modal fade" tabindex="-1" role="dialog">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Details for selected node</h4>
+          </div>
+          <div class="modal-body">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
 
-        <script src="{{ url_for('static',filename='js/main.js') }}"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+    <script>window.jQuery || document.write('<script src="{{ url_for('static',filename='js/vendor/jquery-1.11.2.min.js') }}"><\/script>')</script>
+    <script src="{{ url_for('static',filename='js/vendor/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/main.js') }}"></script>
     </body>
 </html>

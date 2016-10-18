@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template
-from bson.json_util import dumps
+from flask import Flask, json, request
 
 app = Flask(__name__)
 
@@ -8,9 +7,10 @@ app = Flask(__name__)
 def index():
     return "Hello"
 
-@app.route('/lightmanager/<actor>/<value>', methods=['POST'])
-def set_thingactor(actor, value):
-    return '{"Light1":' + str(value) + '}'
+@app.route('/lightmanager/<actor>', methods=['POST'])
+def set_thingactor(actor):
+    data = json.loads(request.get_data())
+    return '{"Light1":' + str(data['value']) + '}'
 
 
 @app.route('/lightmanager/<sensor>', methods=['GET'])

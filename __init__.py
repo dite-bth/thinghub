@@ -7,13 +7,13 @@ from gevent.wsgi import WSGIServer
 from gevent.queue import Queue
 from sse import ServerSentEvent
 from subscriptions import Subscriptions
-from httperrors import  BadRequest
+from httperrors import  UsageError
 
 app = Flask(__name__)
 
 # Set up database access (MongoDB)
-dbclient = MongoClient()
-db = dbclient.wot
+db_client = MongoClient()
+db = db_client.wot
 
 # Set up subscription handler
 subscriptions = Subscriptions()
@@ -22,8 +22,8 @@ subscriptions = Subscriptions()
 ########################################################
 #  Helper functions
 ########################################################
-# Convert MongoDB object to JSON
-def toJson(data):
+# Convert MongoDB to JSON
+def to_json(data):
     return dumps(data)
 
 
@@ -33,10 +33,7 @@ def validate_thing_description(thing_description):
         mandatory_keys = ('name', 'uri', 'description', 'api_doc', 'actors', 'sensors')
         mandatory_sub_keys = ('name', 'uri', 'description', 'type', 'value', 'method')
         # Also need to check len() because all() returns True for empty iterable
-        print thing_description
-        print thing_description['actors']
         if len(thing_description) > 0 and not all(k in thing_description for k in mandatory_keys):
-            print ("Main error")
             return False
         if len(thing_description['actors']) > 0:
             for actor in thing_description['actors']:
@@ -52,9 +49,10 @@ def validate_thing_description(thing_description):
 
 
 #######################################################
-# Set up routes for error handling
+# Set up route for error handling using a HTTP-error
+# class to define and raise specific errors
 #######################################################
-@app.errorhandler(BadRequest)
+@app.errorhandler(UsageError)
 def handle_invalid_usage(error):
     response = jsonify(error.to_dict())
     response.status_code = error.status_code
@@ -66,7 +64,10 @@ def handle_invalid_usage(error):
 #######################################################
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # Get the thing collection
+    things_collection = db.thing.find()
+    things_list = list(things_collection)
+    return render_template("index.html", things=things_list)
 
 
 # Endpoint for registering devices
@@ -79,9 +80,10 @@ def register():
         # Validate Thing description
         if validate_thing_description(data):
             return Response('{"Success": "Registered"}', mimetype='application/json')
-        raise BadRequest('Malformed Thing description', status_code=400)
+        else:
+            raise UsageError('Malformed Thing description', status_code=400)
     except ValueError:
-        raise BadRequest('Malformed JSON', status_code=400)
+        raise UsageError('Malformed JSON', status_code=400)
 
 
 # GET list of thing descriptions
@@ -100,8 +102,9 @@ def get_things():
 def get_thing(name):
     thing = db.thing.find({"name": name})
     if thing.count() <= 0:
-        return '{"Error:": "No such name"}'
-    return toJson(thing)
+        raise UsageError("No such thing (name)", status_code=400)
+        return None
+    return to_json(thing)
 
 
 # GET list of actors for named thing
@@ -109,10 +112,11 @@ def get_thing(name):
 def get_thingactors(name):
     thing = db.thing.find({"name": name})
     if thing.count() <= 0:
-        return '{"Error:": "No such name"}'
+        raise UsageError("No such thing (name)", status_code=400)
+        return None
     for data in thing:
-        thing_dict = json.loads(toJson(data))
-    return toJson(thing_dict['actors'])
+        thing_dict = json.loads(to_json(data))
+    return to_json(thing_dict['actors'])
 
 
 # GET list of sensors for named thing
@@ -120,10 +124,11 @@ def get_thingactors(name):
 def get_thingsensors(name):
     thing = db.thing.find({"name": name})
     if thing.count() <= 0:
-        return '{"Error:": "No such name"}'
+        raise UsageError("No such thing (name)", status_code=400)
+        return None
     for data in thing:
-        thing_dict = json.loads(toJson(data))
-    return toJson(thing_dict['sensors'])
+        thing_dict = json.loads(to_json(data))
+    return to_json(thing_dict['sensors'])
 
 
 # POST (set) value for thing actor
@@ -131,24 +136,26 @@ def get_thingsensors(name):
 def set_thingactor(name, actor, value):
     thing = db.thing.find({"$and": [{"name": name}, {"actors.name": actor}]})
     if thing.count() <= 0:
-        return '{"Error:": "No such name"}'
+        raise UsageError("No such thing (name)", status_code=400)
+        return None
     for data in thing:
-        thing_dict = json.loads(toJson(data))
+        thing_dict = json.loads(to_json(data))
         for item in thing_dict['actors']:
             if item['name'] == actor:
                 post_url = item['uri']
                 payload = '{"value": "%s"}' % value
-                print payload
                 try:
-                    response = requests.post(post_url, data=json.dumps(payload), timeout=5)
+                    response = requests.post(post_url, data=payload, timeout=8)
                 except requests.exceptions.Timeout:
                     #Request timed out
-                    return Response("Request timed out for %s" % post_url, status=408)
+                    raise UsageError("Request timed out for %s" % post_url, status_code=408)
                 except requests.exceptions.RequestException as e:
                     # Something went really wrong...
-                    print e
-                    return Response(e.message, status=503)
-    return response.text
+                    raise UsageError(e.message, status_code=503)
+                else:
+                    return response.text
+            else:
+                raise UsageError("No such actor (name)", status_code=400)
 
 
 # GET value for thing sensor
@@ -156,9 +163,10 @@ def set_thingactor(name, actor, value):
 def get_thingsensor(name, sensor):
     thing = db.thing.find({"$and": [{"name": name}, {"sensors.name": sensor}]})
     if thing.count() <= 0:
-        return '{"Error:": "No such name"}'
+        raise UsageError("No such thing (name)", status_code=400)
+        return None
     for data in thing:
-        thing_dict = json.loads(toJson(data))
+        thing_dict = json.loads(to_json(data))
         for item in thing_dict['sensors']:
             if item['name'] == sensor:
                 get_url = item['uri']

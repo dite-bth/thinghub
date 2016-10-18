@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-class BadRequest(Exception):
+class UsageError(Exception):
     status_code = 400
 
     def __init__(self, message, status_code=None, payload=None):
