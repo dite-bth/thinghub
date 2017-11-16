@@ -134,7 +134,7 @@
       <h2>Uppdateringar från Wot-enheter</h2>
       <p id="wotlist"></p>
       <script type="text/javascript">
-        var source = new EventSource("/things/Light mamager/subscribe");
+        var source = new EventSource("/things/Light manager/subscribe");
         source.onmessage = function(e) {
             var data = JSON.parse(e.data)
             $("#wotlist").append(data.name + "<br>");

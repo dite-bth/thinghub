@@ -202,6 +202,8 @@ def publish():
 
 @app.route("/things/<name>/subscribe")
 def subscribe(name):
+    # TODO: implement subscriptions for specific things
+    print("Subscription added")
     def gen():
         q = Queue()
         subscriptions.add_subscription(q)

@@ -9,12 +9,12 @@ initial_things = [
     {
     'id': 1,
     'name': u'Light manager',
-    'uri': u'http://10.0.0.3:8080/lightmanager',
-    'api_doc': u'http://10.0.0.3:8080/api/doc#lightmanager',
+    'uri': u'http://192.168.48.160:8080/lightmanager',
+    'api_doc': u'http://192.168.48.160:8080/api/doc#lightmanager',
     'description': u'Manages sensors and actuators to control lights',
     'sensors':[{
         'id': 1,
-        'uri': u'http://10.0.0.3:8080/lightmanager/luminosity1',
+        'uri': u'http://192.168.48.160:8080/lightmanager/luminosity1',
         'method': u'GET',
         'name': u'Luminosity sensor1',
         'description': u'Current luminosity for sensor 1 (measured in 5 minute intervals)',
@@ -24,7 +24,7 @@ initial_things = [
     'actors':[
         {
         'id': 1,
-        'uri': u'http://10.0.0.3:8080/lightmanager/light1',
+        'uri': u'http://192.168.48.160:8080/lightmanager/light1',
         'method': u'POST',
         'name': u'Window spot',
         'description': u'Lightswitch to control window spot',
@@ -32,7 +32,7 @@ initial_things = [
         'value': u'False'},
         {
         'id': 2,
-        'uri': u'http://10.0.0.3:8080/lightmanager/light2',
+        'uri': u'http://192.168.48.160:8080/lightmanager/light2',
         'method': u'POST',
         'name': u'Roof ambient',
         'description': u'Lightswitch to control roof ambient',
@@ -43,12 +43,12 @@ initial_things = [
     {
         'id': 1,
         'name': u'Temperature manager',
-        'uri': u'http://10.0.0.3:8080/tempmanager',
-        'api_doc': u'http://10.0.0.3:8080/api/doc#tempmanager',
+        'uri': u'http://192.168.48.160:8080/tempmanager',
+        'api_doc': u'http://192.168.48.160:8080/api/doc#tempmanager',
         'description': u'Manages thermometors and a thermostat to check and adjust the temperature',
         'sensors': [{
             'id': 1,
-            'uri': u'http://10.0.0.3:8080/tempmanager/temperature-inside',
+            'uri': u'http://192.168.48.160:8080/tempmanager/temperature-inside',
             'method': u'GET',
             'name': u'Temp inside',
             'description': u'Current temperature indoors in degrees Celsius (measured in 5 minute intervals)',
@@ -57,7 +57,7 @@ initial_things = [
             },
             {
                 'id': 2,
-                'uri': u'http://10.0.0.3:8080/tempmanager/temperature-outside',
+                'uri': u'http://192.168.48.160:8080/tempmanager/temperature-outside',
                 'method': u'GET',
                 'name': u'Temp outside',
                 'description': u'Current temperature outdoors in degrees Celsius (measured in 5 minute intervals)',
@@ -68,7 +68,7 @@ initial_things = [
         'actors': [
             {
                 'id': 1,
-                'uri': u'http://10.0.0.3:8080/tempmanager/thermostat',
+                'uri': u'http://192.168.48.160:8080/tempmanager/thermostat',
                 'method': u'POST',
                 'name': u'Thermostat',
                 'description': u'Use to set setpoint temperature (degrees Celsius)',
