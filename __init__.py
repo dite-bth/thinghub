@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import threading, time
 import json, requests, gevent
 from flask import Flask, render_template, Response, request, jsonify
 from bson.json_util import dumps
@@ -10,6 +11,8 @@ from subscriptions import Subscriptions
 from httperrors import  UsageError
 
 app = Flask(__name__)
+app.debug = False
+server = WSGIServer(("127.0.0.1", 5000), app)
 
 # Set up database access (MongoDB)
 db_client = MongoClient()
@@ -218,7 +221,20 @@ def subscribe(name):
     return Response(gen(), mimetype="text/event-stream")
 
 
-if __name__ == '__main__':
-    app.debug = True
-    server = WSGIServer(("0.0.0.0", 5000), app)
+def initFlask():
     server.serve_forever()
+
+
+if __name__ == '__main__':
+    from gevent import monkey
+    monkey.patch_all()
+    threads = []
+    flask_thread = threading.Thread(target=initFlask)
+    flask_thread.daemon = True
+    threads.append(flask_thread)
+    flask_thread.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
