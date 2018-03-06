@@ -233,6 +233,9 @@ if __name__ == '__main__':
     flask_thread.daemon = True
     threads.append(flask_thread)
     flask_thread.start()
+
+    # TODO: add more servers
+    # For now: just loop and sleep until CTRL+C
     try:
         while True:
             time.sleep(1)
