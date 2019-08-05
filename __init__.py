@@ -1,18 +1,26 @@
 # -*- coding: utf-8 -*-
-import threading, time
+import threading, time, subprocess
+
+#MongoDB
 import json, requests, gevent
-from flask import Flask, render_template, Response, request, jsonify
 from bson.json_util import dumps
 from pymongo import MongoClient
+
+#Flask
+from flask import Flask, render_template, Response, request, jsonify
 from gevent.wsgi import WSGIServer
 from gevent.queue import Queue
 from sse import ServerSentEvent
 from subscriptions import Subscriptions
 from httperrors import  UsageError
-
 app = Flask(__name__)
 app.debug = False
-server = WSGIServer(("127.0.0.1", 5000), app)
+flaskServer = WSGIServer(("127.0.0.1", 5000), app)
+
+#CoAP server
+from coapserver import CoAPServer
+coapServer = CoAPServer("0.0.0.0", 5683)
+
 
 # Set up database access (MongoDB)
 db_client = MongoClient()
@@ -222,17 +230,35 @@ def subscribe(name):
 
 
 def initFlask():
-    server.serve_forever()
+    try:
+        print "Starting Flask server..."
+        flaskServer.serve_forever()
+    except KeyboardInterrupt:
+        print "Stopping flask server"
+        flaskServer.close()
+
+def initCoAP():
+    try:
+        print "Starting CoAP server..."
+        coapServer.listen(10)
+    except KeyboardInterrupt:
+        coapServer.close()
 
 
 if __name__ == '__main__':
     from gevent import monkey
     monkey.patch_all()
+
     threads = []
     flask_thread = threading.Thread(target=initFlask)
     flask_thread.daemon = True
     threads.append(flask_thread)
-    flask_thread.start()
+    coap_thread = threading.Thread(target=initCoAP)
+    coap_thread.daemon = True
+    threads.append(coap_thread)
+
+    for thread in threads:
+        thread.start()
 
     # TODO: add more servers
     # For now: just loop and sleep until CTRL+C
@@ -240,4 +266,4 @@ if __name__ == '__main__':
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        pass
+        print "Server shutdown initiated..."
